@@ -1,7 +1,7 @@
 import os
 import logging
 import asyncio
-from patchright.async_api import async_playwright, Browser, BrowserContext, Page, Locator
+from patchright.async_api import async_playwright, Browser, BrowserContext, Page, Locator, ElementHandle
 import random
 import math
 from typing import Literal
@@ -95,6 +95,37 @@ class Scrapper:
         await self._target.start(self)
         log.info(f"Target job completed: {self._target}")
     
+    async def getParent(self, element: ElementHandle, depth: int = 1) -> ElementHandle | None:
+        parent = await element.evaluate_handle(
+            f"""
+            (el) => {{
+                let current = el;
+                for (let i = 0; i < {depth}; i++) {{
+                    if (!current.parentNode) return null;
+                    current = current.parentNode;
+                }}
+                return current;
+            }}
+            """
+        )
+        is_null = await parent.evaluate("el => el === null")
+        return None if is_null else parent
+
+    async def getChildren(self, element: ElementHandle) -> list[ElementHandle]:  
+        return await element.query_selector_all(":scope > *")                       
+
+
+    async def traverseElement(self, element: ElementHandle, path: list[int]) -> ElementHandle | None:
+        current = element
+        for idx in path:
+            children = await current.query_selector_all(":scope > *")
+            if idx >= len(children):
+                return None
+            current = children[idx]
+        return current
+
+    async def getText(self, element: ElementHandle) -> str:
+        return await element.evaluate("el => el.innerText")
 
     async def currentScrollPos(self):
         x = await self.page.evaluate('() => window.scrollX')

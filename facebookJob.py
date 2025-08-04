@@ -1,18 +1,17 @@
 import asyncio
 import traceback
 from post_scrapper import Scrapper
-from post_scrapper.targets.facebook import Facebook
+from post_scrapper.targets.facebookBetter import FacebookBetter
 import logging
 
 
 async def main():
     try:
         async with Scrapper() as s:
-            fb = Facebook("Razer", mentions=True)
+            fb = FacebookBetter("Razer", mentions=True)
             await s.setJob(fb)
             await s.start()
     
-
             
     except Exception:
         traceback.print_exc()
