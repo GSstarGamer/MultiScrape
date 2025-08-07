@@ -26,6 +26,7 @@ class Scrapper:
         self.context: BrowserContext | None = None
         self.page: Page | None = None
         self._target = None
+        self.log = log
         log.setLevel(log_level)
     
     async def sleep(self, seconds: float): 
@@ -57,16 +58,16 @@ class Scrapper:
         inp = await loop.run_in_executor(None, input, prompt)
         if isinstance(inp, str) and inp.lower() == "debug":
             log.setLevel(logging.DEBUG)
+        await self._pw_ctx.__aexit__(exc_t, exc_v, exc_tb)
 
-
-        log.debug("Exiting Scrapper context")
-        if self.context:
-            await self.context.close()
-            log.debug("Closed context")
-        if self._pw_ctx:
-            await self._pw_ctx.__aexit__(exc_t, exc_v, exc_tb)
-            log.debug("Closed playwright")
-        log.info("Scrapper closed!")
+        # log.debug("Exiting Scrapper context")
+        # if self.context:
+        #     await self.context.close()
+        #     log.debug("Closed context")
+        # if self._pw_ctx:
+            
+        #     log.debug("Closed playwright")
+        # log.info("Scrapper closed!")
 
 
     async def close(self):
@@ -94,7 +95,11 @@ class Scrapper:
         log.info(f"Starting target job: {self._target}")
         await self._target.start(self)
         log.info(f"Target job completed: {self._target}")
-    
+
+    async def isHandleNull(self, handle: ElementHandle) -> ElementHandle | None:
+        is_null = await handle.evaluate("el => el === null")
+        return None if is_null else handle
+
     async def getParent(self, element: ElementHandle, depth: int = 1) -> ElementHandle | None:
         parent = await element.evaluate_handle(
             f"""
@@ -108,8 +113,7 @@ class Scrapper:
             }}
             """
         )
-        is_null = await parent.evaluate("el => el === null")
-        return None if is_null else parent
+        return await self.isHandleNull(parent)
 
     async def getChildren(self, element: ElementHandle) -> list[ElementHandle]:  
         return await element.query_selector_all(":scope > *")                       
@@ -125,7 +129,22 @@ class Scrapper:
         return current
 
     async def getText(self, element: ElementHandle) -> str:
+        if element is None:
+            return ""
         return await element.evaluate("el => el.innerText")
+    
+    
+    async def attribSearch(self, root: ElementHandle, attribute: str, value: str) -> ElementHandle | None:
+        handle = await root.evaluate_handle(
+            f"""
+            (el) => el.querySelector('[{attribute}="{value}"]')
+            """
+        )
+        return await self.isHandleNull(handle)
+
+    async def getAttr(self, element: ElementHandle, attribute: str) -> str | None:
+        return await element.evaluate(f'el => el.getAttribute("{attribute}")')
+        
 
     async def currentScrollPos(self):
         x = await self.page.evaluate('() => window.scrollX')
@@ -178,10 +197,10 @@ class Scrapper:
     async def soup(self, type = "html.parser") -> BeautifulSoup:
         return BeautifulSoup(await self.page.content(), type)
 
-    async def attribSearch(self, root: PageElement, attribute: str, value: str) -> PageElement | None:
-        if hasattr(root, 'get') and root.get(attribute) == value:
-            log.debug(f"Found element with attribute '{attribute}' and value '{value}'")
-            return root
+    # async def attribSearch(self, root: PageElement, attribute: str, value: str) -> PageElement | None:
+    #     if hasattr(root, 'get') and root.get(attribute) == value:
+    #         log.debug(f"Found element with attribute '{attribute}' and value '{value}'")
+    #         return root
 
         for child in getattr(root, 'children', []):
             if not hasattr(child, 'children'):
@@ -239,6 +258,7 @@ class Scrapper:
 
         soup = await self.soup()
         return get_tag_by_xpath(soup, xpath)
+
 
     # async def scrollTo(self, element: Locator | Tag, padding: int = 100, max_duration: float = 3.0, step_delay=0.016):
     #     """

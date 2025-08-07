@@ -8,7 +8,7 @@ import logging
 async def main():
     try:
         async with Scrapper() as s:
-            fb = FacebookBetter("Razer", mentions=True)
+            fb = FacebookBetter("Razer", recent=True, mentions=False)
             await s.setJob(fb)
             await s.start()
     
